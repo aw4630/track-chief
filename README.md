@@ -21,14 +21,19 @@ Essentially, NJ Transit commuter trains departing from NY Penn Station <b>do not
 
 <img src="images/pennstation5.png" width="300" class="center"/>
 
-<img src="images/pennstation3.png" width="275" class="center"/>
+<img src="images/pennstation3.png" width="265" class="center"/>
 
 <em align = "center">The scene looks something like this</em>
 
 <br/>
 
+<h2> Plan & Workflow</h2>
 
-
+- Develop a full-stack mobile-friendly application (React Native) for commuters that predicts the track number of scheduled departing NJ Transit trains from New York Penn Station with at least 80% accuracy, allowing users to enter trains over 10 minutes before track is announced. <br/>
+- Utilize NJ Transit’s GTFS data to retrieve train schedule info while also creating a containerized (K8s) web scraping API that
+fetches track numbers, storing data collected in an Google Cloud SQL relational database which integrates with Django backend. <br/>
+- Incorporate Tensorflow to handle historical track data to create a logistic regression-based ML model and continuously 
+improve predictions as data is collected over time. <br/>
 
   
 </p>
