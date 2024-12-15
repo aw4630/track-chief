@@ -1,6 +1,11 @@
 import pandas as pd
 
-# Clean/preprocess route data for relational PostgreSQL DB
+''' Clean/preprocess route data for relational PostgreSQL DB
+    Specifically dropping unneeded data columns and editing train departure times to range from 0-24 hours
+    The csv will be saved to the rail_data folder, which will be then uploaded to PGAdmin4 for testing queries
+    Afterwards I will create a SQL dump file and upload it to my Google Cloud SQL bucket and the respective cloud instance
+'''
+
 csv_path = '/Users/alanwu/Downloads/rail_data/routes.csv'
 df = pd.read_csv(csv_path)
 
@@ -47,3 +52,5 @@ if 'departure_time' in df.columns:
 df.to_csv(output_csv_path, index=False)
 
 print(f"Cleaned CSV saved as {output_csv_path}")
+
+
