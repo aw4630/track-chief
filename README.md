@@ -4,6 +4,9 @@
   
 
 <h1>**(WIP)** </h1>
+<h1>CURRENT PHASE: Data collection</h1>
+<p><i>Currently collecting data for the next two weeks to train my predictive model</i></p>
+<br/>
 <b>Real-time track predictor for NJ Transit commuter trains @ NY Penn Station -> future web/mobile app</b>
 </div>
 
@@ -39,5 +42,4 @@ improve predictions as data is collected over time. <br/>
   
 </p>
 </div>
-
 
