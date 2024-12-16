@@ -10,6 +10,18 @@ import pandas as pd
 from datetime import datetime
 import time
 
+''' 
+
+    THIS IS DEPARTURE VISION SCRAPER SCRIPT for NY PENN STATION VERSION 2
+    - Collects the track number of departing trains in real-time
+    - Goes thru class headers/names containing scheduled train data from the Javascript-rendered NJ Transit website
+    - Runs every 10 minutes 
+    - Unique data entries are uploaded in a .csv format to test script functionality/accuracy
+
+    VERSION 3: Containerize scraping script w/ Docker and deploy to Kubernetes cluster for automated scraping
+
+'''
+
 class NJTransitScraper:
     def __init__(self, url, driver_path):
         self.url = url
