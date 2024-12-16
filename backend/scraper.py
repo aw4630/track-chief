@@ -123,7 +123,7 @@ class NJTransitScraper:
         else:
             print("No data collected.")
 
-    def scrape(self, output_file, interval_minutes=5):
+    def scrape(self, output_file, interval_minutes=10):
         while True:
             print(f"Starting scrape at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             self.fetch_page()
