@@ -1,1 +1,21 @@
 .history/
+
+# Virtual Environment
+venv_rosetta/
+venv/
+env/
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Node (FRONTEND)
+node_modules/
