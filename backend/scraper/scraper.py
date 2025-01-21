@@ -186,56 +186,50 @@ class NJTransitScraper:
         self.initialize_driver()
 
     def cleanup_chrome_processes(self):
-        """Kill any existing Chrome processes"""
+        """Clean up only scraper-related Chrome processes"""
         try:
-            for proc in psutil.process_iter(['name']):
-                if 'chrome' in proc.info['name'].lower():
-                    try:
-                        proc.kill()
-                    except:
-                        pass
-            time.sleep(2)  # Give processes time to clean up
+            if self.driver:
+                try:
+                    self.driver.quit()
+                except:
+                    pass
+                self.driver = None
+            time.sleep(1)  # Brief pause to ensure cleanup
         except Exception as e:
-            logger.error(f"Error cleaning up Chrome processes: {e}")
+            logger.error(f"Error in cleanup: {e}")
 
     def initialize_driver(self, retry_count=3):
         """Initialize Chrome driver with retries"""
         for attempt in range(retry_count):
             try:
-                # Clean up any existing Chrome processes
-                self.cleanup_chrome_processes()
-                
                 options = Options()
-                options.add_argument('--headless=new')  # Updated headless mode
+                options.add_argument('--headless=new')
                 options.add_argument('--no-sandbox')
                 options.add_argument('--disable-dev-shm-usage')
                 options.add_argument('--disable-gpu')
                 options.add_argument('--disable-software-rasterizer')
                 options.add_argument('--disable-extensions')
                 options.add_argument('--disable-browser-side-navigation')
-                options.add_argument('--remote-debugging-port=0')  # Random debug port
+                options.add_argument('--remote-debugging-port=0')
+                options.add_argument('--user-data-dir=/tmp/chrome-scraper')  # Isolated profile
                 options.add_experimental_option('excludeSwitches', ['enable-logging'])
-                
+            
                 # Set Chrome binary location for M1 Mac
                 options.binary_location = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-                
+            
                 # Use ChromeDriverManager for automatic driver management
                 driver_path = ChromeDriverManager().install()
                 service = Service(driver_path)
-                
+            
                 self.driver = webdriver.Chrome(service=service, options=options)
                 logger.info("Chrome driver initialized successfully")
                 return
-                
+            
             except Exception as e:
                 logger.error(f"Attempt {attempt + 1} failed to initialize driver: {e}")
-                if self.driver:
-                    try:
-                        self.driver.quit()
-                    except:
-                        pass
+                self.cleanup_chrome_processes()
                 if attempt < retry_count - 1:
-                    time.sleep(5 * (attempt + 1))  # Exponential backoff
+                    time.sleep(5 * (attempt + 1))
                 else:
                     raise Exception("Failed to initialize Chrome driver after multiple attempts")
 
