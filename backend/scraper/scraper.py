@@ -154,131 +154,174 @@ if __name__ == "__main__":
 
 '''
 
+# backend/scraper/scraper.py
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import NoSuchElementException, TimeoutException, WebDriverException
 from datetime import datetime
 import time
 import os
-import django
-import sys
-from django.db import connection
-from django.conf import settings
+import psutil
 import logging
+from django.db import connection
+from webdriver_manager.chrome import ChromeDriverManager
 
-
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 class NJTransitScraper:
     def __init__(self, url):
         self.url = url
         self.data = []
-        
-        # Configure Selenium WebDriver for containerized environment
-        options = Options()
-        options.add_argument('--headless')
-        options.add_argument('--no-sandbox')
-        options.add_argument('--disable-dev-shm-usage')
-        options.binary_location = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'
+        self.driver = None
+        self.initialize_driver()
 
-        options.add_argument('--disable-gpu')
-        options.add_argument('--remote-debugging-port=9222')
-        options.add_argument('--disable-dev-tools')
-        options.add_experimental_option('excludeSwitches', ['enable-logging'])
-        
-        service = Service('/opt/homebrew/bin/chromedriver')
-
+    def cleanup_chrome_processes(self):
+        """Kill any existing Chrome processes"""
         try:
-            self.driver = webdriver.Chrome(service=service, options=options)
+            for proc in psutil.process_iter(['name']):
+                if 'chrome' in proc.info['name'].lower():
+                    try:
+                        proc.kill()
+                    except:
+                        pass
+            time.sleep(2)  # Give processes time to clean up
         except Exception as e:
-            print(f"Failed to initialize Chrome driver: {e}")
-            raise
+            logger.error(f"Error cleaning up Chrome processes: {e}")
+
+    def initialize_driver(self, retry_count=3):
+        """Initialize Chrome driver with retries"""
+        for attempt in range(retry_count):
+            try:
+                # Clean up any existing Chrome processes
+                self.cleanup_chrome_processes()
+                
+                options = Options()
+                options.add_argument('--headless=new')  # Updated headless mode
+                options.add_argument('--no-sandbox')
+                options.add_argument('--disable-dev-shm-usage')
+                options.add_argument('--disable-gpu')
+                options.add_argument('--disable-software-rasterizer')
+                options.add_argument('--disable-extensions')
+                options.add_argument('--disable-browser-side-navigation')
+                options.add_argument('--remote-debugging-port=0')  # Random debug port
+                options.add_experimental_option('excludeSwitches', ['enable-logging'])
+                
+                # Set Chrome binary location for M1 Mac
+                options.binary_location = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+                
+                # Use ChromeDriverManager for automatic driver management
+                driver_path = ChromeDriverManager().install()
+                service = Service(driver_path)
+                
+                self.driver = webdriver.Chrome(service=service, options=options)
+                logger.info("Chrome driver initialized successfully")
+                return
+                
+            except Exception as e:
+                logger.error(f"Attempt {attempt + 1} failed to initialize driver: {e}")
+                if self.driver:
+                    try:
+                        self.driver.quit()
+                    except:
+                        pass
+                if attempt < retry_count - 1:
+                    time.sleep(5 * (attempt + 1))  # Exponential backoff
+                else:
+                    raise Exception("Failed to initialize Chrome driver after multiple attempts")
 
     def parse_data(self):
+        if not self.driver:
+            logger.error("Driver not initialized")
+            return
+
         try:
             entries = self.driver.find_elements(By.CLASS_NAME, "media-body")
-            print(f"Number of entries found: {len(entries)}")   
+            logger.info(f"Number of entries found: {len(entries)}")   
 
             for entry in entries:
                 try:
-                    #DEBUG 
-                    print("Entry Text: ", entry.text)
+                    # Extract route short name
+                    route_short_name_element = entry.find_element(By.XPATH, ".//p/span")
+                    route_short_name = route_short_name_element.text.strip()
 
-                    # EXTRACT route short name (ex: 'NEC', 'NJCL')
-                    try:
-                        route_short_name_element = entry.find_element(By.XPATH, ".//p/span")
-                        route_short_name = route_short_name_element.text.strip()
-                    except NoSuchElementException:
-                        print("Route short name not found, skipping entry.")
+                    # Extract train number
+                    train_text_element = entry.find_element(By.XPATH, ".//p[contains(text(), 'Train')]")
+                    train_text = train_text_element.text.strip()
+                    train_number = train_text.split("Train")[1].strip()
+
+                    # Extract departure time
+                    # Modified departure time handling
+                    departure_time_element = entry.find_element(By.XPATH, ".//strong[contains(text(), ':')]")
+                    departure_time_raw = departure_time_element.text.strip()
+                    now = datetime.now()  # Local time
+                
+                    # Parse the time and explicitly set today's date
+                    departure_time = datetime.strptime(
+                        f"{now.date()} {departure_time_raw}",
+                        "%Y-%m-%d %I:%M %p"
+                    )
+
+                    # Adjust for timezone if necessary
+                    if departure_time_raw.endswith('PM') and departure_time.hour < 12:
+                        departure_time = departure_time.replace(hour=departure_time.hour + 12)
+                    elif departure_time_raw.endswith('AM') and departure_time.hour == 12:
+                        departure_time = departure_time.replace(hour=0)
+
+                    # Format for database (keep it in local time)
+                    departure_time_str = departure_time.strftime("%Y-%m-%d %H:%M:%S")
+
+                    # Extract track number
+                    track_element = entry.find_element(By.XPATH, ".//p[contains(text(), 'Track')]")
+                    track = track_element.text.strip()
+                    
+                    if not track.startswith("Track"):
+                        logger.warning(f"Invalid track format: {track}")
                         continue
 
-                    # EXTRACT train number (ex: 'Train 7684')
-                    try:
-                        train_text_element = entry.find_element(By.XPATH, ".//p[contains(text(), 'Train')]")
-                        train_text = train_text_element.text.strip()
-                        train_number = train_text.split("Train")[1].strip()
-                    except NoSuchElementException:
-                        print("Train number not found, skipping entry.")
-                        continue
-
-                    # EXTRACT departure time (ex: '8:54 PM') and convert to ISO ("%Y-%m-%dT%H:%M:%SZ") format 
-                    try:
-                        departure_time_element = entry.find_element(By.XPATH, ".//strong[contains(text(), ':')]")
-                        departure_time_raw = departure_time_element.text.strip()
-                        now = datetime.now()
-                        departure_time = datetime.strptime(
-                            f"{now.strftime('%Y-%m-%d')} {departure_time_raw}", "%Y-%m-%d %I:%M %p"
-                        ).strftime("%Y-%m-%dT%H:%M:%SZ")
-                    except NoSuchElementException:
-                        print("Departure time not found, skipping entry.")
-                        continue
-
-                    # EXTRACT track number (ex: 'Track 2')
-                    try:
-                        track_element = entry.find_element(By.XPATH, ".//p[contains(text(), 'Track')]")
-                        track = track_element.text.strip()
-                        if not track.startswith("Track"):  
-                            print("Invalid track number, skipping entry.")
-                            continue
-                    except NoSuchElementException:
-                        print("Track number not found, skipping entry.")
-                        continue
-
-
-                    # Check for duplicates, only append new entry if unique
                     new_entry = {
                         "train_number": train_number,
                         "route_short_name": route_short_name,
-                        "departure_time": departure_time,
+                        "departure_time": departure_time_str,
                         "track": track,
                     }
+
                     if new_entry not in self.data:
                         self.data.append(new_entry)
+                        logger.debug(f"Added new entry: {new_entry}")
                     else:
-                        print("Duplicate entry found, skipping.")
+                        logger.debug("Duplicate entry found, skipping.")
 
-                except Exception as e:
-                    print(f"Error processing entry: {e}, skipping.")
+                except NoSuchElementException as e:
+                    logger.warning(f"Missing element in entry: {e}")
                     continue
+                except Exception as e:
+                    logger.error(f"Error processing entry: {e}")
+                    continue
+
         except Exception as e:
-            print(f"Error parsing data: {e}")
+            logger.error(f"Error parsing data: {e}")
+            raise
 
     def upload_to_db(self):
         """Upload data to track_usage table"""
         if not self.data:
-            print("No data to upload")
+            logger.info("No data to upload")
             return
-    
-        connection = None
+
         cursor = None
         try:
-            from django.db import connection
             cursor = connection.cursor()
-        
+            
             query = """
             INSERT INTO track_usage 
             (train_number, route_short_name, departure_time, track)
@@ -288,50 +331,94 @@ class NJTransitScraper:
                 track = EXCLUDED.track,
                 route_short_name = EXCLUDED.route_short_name;
             """
-        
+            
             values = [(
                 entry['train_number'],
                 entry['route_short_name'],
                 entry['departure_time'],
                 entry['track']
             ) for entry in self.data]
-        
+            
             cursor.executemany(query, values)
             connection.commit()
-            print(f"Successfully scraped {len(values)} records") #if duplicates, they are not uploaded
-        
+            logger.info(f"Successfully uploaded {len(values)} records")
+            
         except Exception as e:
-            print(f"Error uploading to database: {e}")
-            if connection:
-                connection.rollback()
+            logger.error(f"Error uploading to database: {e}")
+            connection.rollback()
+            raise
         finally:
             if cursor:
                 cursor.close()
             self.data = []  # Clear data after upload attempt
 
     def fetch_page(self):
-        try:
-            self.driver.get(self.url)
-            WebDriverWait(self.driver, 10).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "media-body"))
-            )
-        except TimeoutException:
-            logger.warning("Timeout while loading the page. Retrying...")
-            return None
+        if not self.driver:
+            logger.error("Driver not initialized")
+            return
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.driver.get(self.url)
+                WebDriverWait(self.driver, 10).until(
+                    EC.presence_of_element_located((By.CLASS_NAME, "media-body"))
+                )
+                return True
+            except TimeoutException:
+                logger.warning(f"Timeout while loading the page. Attempt {attempt + 1} of {max_retries}")
+                if attempt == max_retries - 1:
+                    raise
+                time.sleep(5 * (attempt + 1))
+            except WebDriverException as e:
+                logger.error(f"WebDriver error: {e}")
+                raise
 
     def scrape(self, interval_minutes=10):
         """Main scraping loop"""
+        retry_count = 0
+        max_retries = 3
+        
         while True:
-            logger.info(f"Starting scrape at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
             try:
+                logger.info(f"Starting scrape at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                if not self.driver:
+                    self.initialize_driver()
+                
                 self.fetch_page()
                 self.parse_data()
                 self.upload_to_db()
+                
+                retry_count = 0  # Reset retry count on successful scrape
                 logger.info(f"Sleeping for {interval_minutes} minutes...")
-                time.sleep(interval_minutes * 60) # default scrape time set at 10 minutes
+                time.sleep(interval_minutes * 60)
+                
             except Exception as e:
                 logger.error(f"Error during scrape cycle: {e}")
-                time.sleep(60)  # Wait a minute before retrying
+                retry_count += 1
+                
+                try:
+                    if self.driver:
+                        self.driver.quit()
+                except:
+                    pass
+                
+                self.driver = None
+                
+                if retry_count >= max_retries:
+                    logger.error("Max retries reached, waiting longer before next attempt")
+                    time.sleep(300)  # 5 minutes
+                    retry_count = 0
+                else:
+                    time.sleep(60 * retry_count)  # Progressive backoff
 
     def close(self):
-        self.driver.quit()
+        """Cleanup method"""
+        try:
+            if self.driver:
+                self.driver.quit()
+        except Exception as e:
+            logger.error(f"Error closing driver: {e}")
+        finally:
+            self.cleanup_chrome_processes()

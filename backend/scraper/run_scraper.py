@@ -13,14 +13,16 @@ from scraper import NJTransitScraper
 
 if __name__ == "__main__":
     URL = "https://www.njtransit.com/dv-to/New%20York%20Penn%20Station"
-    scraper = NJTransitScraper(url=URL)
+    scraper = None
     
     try:
+        scraper = NJTransitScraper(url=URL)
         print("Starting scraper...")
-        scraper.scrape(interval_minutes=10)
+        scraper.scrape(interval_minutes=9)
     except KeyboardInterrupt:
         print("\nScraping stopped by user")
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Fatal error: {e}")
     finally:
-        scraper.close()
+        if scraper:
+            scraper.close()
