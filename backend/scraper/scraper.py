@@ -170,6 +170,7 @@ import psutil
 import logging
 from django.db import connection
 from webdriver_manager.chrome import ChromeDriverManager
+import random
 
 # Configure logging
 logging.basicConfig(
@@ -346,8 +347,9 @@ class NJTransitScraper:
             if cursor:
                 cursor.close()
             self.data = []  # Clear data after upload attempt
-
+    
     def fetch_page(self):
+        """Fetch page with improved error handling"""
         if not self.driver:
             logger.error("Driver not initialized")
             return
@@ -355,11 +357,21 @@ class NJTransitScraper:
         max_retries = 3
         for attempt in range(max_retries):
             try:
-                self.driver.get(self.url)
-                WebDriverWait(self.driver, 10).until(
-                    EC.presence_of_element_located((By.CLASS_NAME, "media-body"))
-                )
+                # Clear browser data before fetching
+                self.driver.delete_all_cookies()
+            
+                # Add random delay to avoid detection
+                time.sleep(random.uniform(1, 3))
+            
+                # Fetch the page
+                self    .driver.get(self.url)
+            
+                # Wait for page to load with explicit wait
+                wait = WebDriverWait(self.driver, 20, poll_frequency=1)
+                wait.until(EC.presence_of_element_located((By.CLASS_NAME, "media-body")))
+            
                 return True
+            
             except TimeoutException:
                 logger.warning(f"Timeout while loading the page. Attempt {attempt + 1} of {max_retries}")
                 if attempt == max_retries - 1:
@@ -367,7 +379,12 @@ class NJTransitScraper:
                 time.sleep(5 * (attempt + 1))
             except WebDriverException as e:
                 logger.error(f"WebDriver error: {e}")
-                raise
+                if "net::ERR_CONNECTION_TIMED_OUT" in str(e):
+                    logger.info("Connection timed out, reinitializing driver...")
+                    self.cleanup_chrome_processes()
+                    self.initialize_driver()
+                else:
+                    raise
 
     def scrape(self, interval_minutes=10):
         """Main scraping loop"""
@@ -386,8 +403,9 @@ class NJTransitScraper:
                 self.upload_to_db()
                 
                 retry_count = 0  # Reset retry count on successful scrape
-                logger.info(f"Sleeping for {interval_minutes} minutes...")
-                time.sleep(interval_minutes * 60)
+                sleep_time = interval_minutes * 60 + random.uniform(-30, 30)
+                logger.info(f"Sleeping for approx {interval_minutes} minutes...")
+                time.sleep(sleep_time)
                 
             except Exception as e:
                 logger.error(f"Error during scrape cycle: {e}")
@@ -404,7 +422,7 @@ class NJTransitScraper:
                 #if there is a connection timeout or blocker
                 if retry_count >= max_retries:
                     logger.error("Max retries reached, waiting longer before next attempt")
-                    time.sleep(300)  # 5 minutes
+                    time.sleep(300)  # wait 5 minutes
                     retry_count = 0
                 else:
                     time.sleep(60 * retry_count)  # Progressive backoff
