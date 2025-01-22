@@ -187,6 +187,7 @@ class NJTransitScraper:
 
     def cleanup_chrome_processes(self):
         """Clean up only scraper-related Chrome processes"""
+        # FIXED PROCESS CLEANER TO ONLY CLEAN SCRAPER RELATED CHROME PROCESSES, NOT ALL ONGOING 
         try:
             if self.driver:
                 try:
@@ -194,7 +195,7 @@ class NJTransitScraper:
                 except:
                     pass
                 self.driver = None
-            time.sleep(1)  # Brief pause to ensure cleanup
+            time.sleep(1)  
         except Exception as e:
             logger.error(f"Error in cleanup: {e}")
 
@@ -244,16 +245,16 @@ class NJTransitScraper:
 
             for entry in entries:
                 try:
-                    # Extract route short name
+                    # Extract route short name (ex: NEC)
                     route_short_name_element = entry.find_element(By.XPATH, ".//p/span")
                     route_short_name = route_short_name_element.text.strip()
 
-                    # Extract train number
+                    # Extract train number (ex: Train 7684)
                     train_text_element = entry.find_element(By.XPATH, ".//p[contains(text(), 'Train')]")
                     train_text = train_text_element.text.strip()
                     train_number = train_text.split("Train")[1].strip()
 
-                    # Extract departure time
+                    # Extract departure time (ex: 2025-01-22T00:56:00Z)
                     # Modified departure time handling
                     departure_time_element = entry.find_element(By.XPATH, ".//strong[contains(text(), ':')]")
                     departure_time_raw = departure_time_element.text.strip()
@@ -265,7 +266,7 @@ class NJTransitScraper:
                         "%Y-%m-%d %I:%M %p"
                     )
 
-                    # Adjust for timezone if necessary
+                    # Adjust for timezone from PM/AM to 00:00:00-23:59:59
                     if departure_time_raw.endswith('PM') and departure_time.hour < 12:
                         departure_time = departure_time.replace(hour=departure_time.hour + 12)
                     elif departure_time_raw.endswith('AM') and departure_time.hour == 12:
@@ -274,7 +275,7 @@ class NJTransitScraper:
                     # Format for database (keep it in local time)
                     departure_time_str = departure_time.strftime("%Y-%m-%d %H:%M:%S")
 
-                    # Extract track number
+                    # Extract track number (ex: Track 4)
                     track_element = entry.find_element(By.XPATH, ".//p[contains(text(), 'Track')]")
                     track = track_element.text.strip()
                     
@@ -400,6 +401,7 @@ class NJTransitScraper:
                 
                 self.driver = None
                 
+                #if there is a connection timeout or blocker
                 if retry_count >= max_retries:
                     logger.error("Max retries reached, waiting longer before next attempt")
                     time.sleep(300)  # 5 minutes

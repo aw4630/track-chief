@@ -87,10 +87,14 @@ DATABASES = {
         'PASSWORD': os.getenv('DB_PASSWORD'),
         'HOST': os.getenv('DB_HOST'),
         'PORT': os.getenv('DB_PORT', '5432'),
+        'CONN_MAX_AGE': None,  # Persistent connections
         'OPTIONS': {
             'connect_timeout': 5,
-        },
-        'CONN_MAX_AGE': None,
+            'keepalives': 1,
+            'keepalives_idle': 130,
+            'keepalives_interval': 10,
+            'keepalives_count': 5,
+        }
     }
 }
 
