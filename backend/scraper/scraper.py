@@ -386,7 +386,7 @@ class NJTransitScraper:
                 else:
                     raise
 
-    def scrape(self, interval_minutes=10):
+    def scrape(self, interval_minutes=9):
         """Main scraping loop"""
         retry_count = 0
         max_retries = 3

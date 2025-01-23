@@ -94,6 +94,8 @@ DATABASES = {
             'keepalives_idle': 130,
             'keepalives_interval': 10,
             'keepalives_count': 5,
+            'sslmode': 'require',  # For Google Cloud SQL
+            'retries': 5,
         }
     }
 }
