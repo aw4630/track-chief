@@ -66,6 +66,13 @@ chromedriver.exe
 
 # Google Cloud
 *.json
+credentials.json
 !package.json
 gcloud/
 cloud_sql_proxy
+
+# Misc
+*.bak
+*.tmp
+.coverage
+htmlcov/
