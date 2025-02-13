@@ -1,0 +1,30 @@
+# Django and REST framework
+django==4.2.7
+djangorestframework==3.14.0
+
+# Database
+psycopg2-binary==2.9.9
+cloud-sql-python-connector==1.5.0
+
+# Web Scraping
+selenium==4.15.2
+webdriver-manager==4.0.1
+
+# Google Cloud
+google-cloud-storage==2.13.0
+django-storages==1.14.2
+
+# System Monitoring
+psutil==5.9.5
+
+# Environment variables
+python-dotenv==1.0.0
+django-environ==0.11.2
+
+# Production
+gunicorn==21.2.0
+
+# Additional dependencies
+requests==2.31.0
+urllib3==2.0.7
+certifi==2023.7.22
