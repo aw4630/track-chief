@@ -64,15 +64,23 @@ track_usage.csv
 chromedriver
 chromedriver.exe
 
-# Google Cloud
+# Google Cloud & Kubernetes
 *.json
+key.json
 credentials.json
 !package.json
+kubeconfig
 gcloud/
 cloud_sql_proxy
+.kube/
+*.pem
+cloudsql-sa-key
+
 
 # Misc
 *.bak
 *.tmp
 .coverage
 htmlcov/
+.env.local
+

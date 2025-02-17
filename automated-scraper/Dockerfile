@@ -4,7 +4,8 @@ FROM python:3.9
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    DEBIAN_FRONTEND=noninteractive
+    DEBIAN_FRONTEND=noninteractive \
+    PYTHONPATH=/app
 
 # Install dependencies and Chromium
 RUN apt-get update && apt-get install -y \
@@ -36,9 +37,6 @@ RUN mkdir -p /app/secrets
 
 # Copy the entire app directory
 COPY app/ /app/
-
-# Ensure proper Python path
-ENV PYTHONPATH="/app:${PYTHONPATH}"
 
 # Create non-root user
 RUN useradd -m scraper && \

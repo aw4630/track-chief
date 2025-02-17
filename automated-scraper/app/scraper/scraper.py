@@ -307,8 +307,17 @@ class NJTransitScraper:
 
         cursor = None
         try:
-            cursor = connection.cursor()
-            
+            # Create a new connection for each upload
+            import psycopg2
+            conn = psycopg2.connect(
+            dbname=os.getenv('DB_NAME'),
+            user=os.getenv('DB_USER'),
+            password=os.getenv('DB_PASSWORD'),
+            host='/cloudsql/white-dynamo-447721-k5:us-central1:track-chief',
+            #port=os.getenv('DB_PORT', '5432')
+            )
+            cursor = conn.cursor()
+
             query = """
             INSERT INTO track_usage 
             (train_number, route_short_name, departure_time, track)
@@ -327,16 +336,19 @@ class NJTransitScraper:
             ) for entry in self.data]
             
             cursor.executemany(query, values)
-            connection.commit()
+            conn.commit()
             logger.info(f"Successfully uploaded {len(values)} records")
             
         except Exception as e:
             logger.error(f"Error uploading to database: {e}")
-            connection.rollback()
+            if 'conn' in locals():
+                conn.rollback()
             raise
         finally:
             if cursor:
                 cursor.close()
+            if 'conn' in locals():
+                conn.close()
             self.data = []  # Clear data after upload attempt
     
     def fetch_page(self):

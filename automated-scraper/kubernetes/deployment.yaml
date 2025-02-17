@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: njtransit-scraper
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: njtransit-scraper
+  template:
+    metadata:
+      labels:
+        app: njtransit-scraper
+    spec:
+      serviceAccountName: scraper-sa
+      containers:
+      - name: scraper
+        image: gcr.io/white-dynamo-447721-k5/automated-scraper:latest
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "1Gi"
+            cpu: "500m"
+        env:
+        - name: DJANGO_SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: scraper-secrets
+              key: django-secret-key
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: scraper-secrets
+              key: db-name
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: scraper-secrets
+              key: db-user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: scraper-secrets
+              key: db-password
+        - name: DB_HOST
+          value: "/cloudsql/white-dynamo-447721-k5:us-central1:track-chief"
+        volumeMounts:
+        - name: cloudsql-instance
+          mountPath: /cloudsql
+      - name: cloud-sql-proxy
+        image: gcr.io/cloud-sql-connectors/cloud-sql-proxy:2.1.0
+        args:
+        - "--structured-logs"
+        - "--unix-socket=/cloudsql"
+        - "white-dynamo-447721-k5:us-central1:track-chief"
+        volumeMounts:
+        - name: cloudsql-instance
+          mountPath: /cloudsql
+        securityContext:
+          runAsNonRoot: true
+      volumes:
+      - name: cloudsql-instance
+        emptyDir: {}
